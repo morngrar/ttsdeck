@@ -1,89 +1,42 @@
-#!/usr/bin/env python3
+#!/usr/bin/python3
 
-import html
-import re
 import sys
-import urllib.request
-
 from PIL import Image
-from io import BytesIO
+import os
 
-def load_deck(deck):
-    main = {}
-    side = {}
-
-    with open(deck) as f:
-        data = f.read()
-
-    in_sideboard = False
-    for line in data.split('\n'):
-        if not line.strip():
-            in_sideboard = True
-            continue
-
-        exp = re.search("([0-9]+) (.+)", line.strip())
-        amount = exp.group(1)
-        card = exp.group(2)
-
-        if not in_sideboard:
-            main[card] = amount
-        else:
-            side[card] = amount
-
-    return main, side
-
-def get_image(card):
-    url = "http://magiccards.info/query?{}".format(urllib.parse.urlencode({'q':card}))
-
-    with urllib.request.urlopen(url) as f:
-        data = f.read().decode('utf-8')
-
-    data = html.unescape(data)
-
-    p = re.compile('<img src="([^"]+)"\s$', re.M)
-    m = p.search(data)
-
-    with urllib.request.urlopen(m.group(1)) as f:
-        data = f.read()
-
-    img = Image.open(BytesIO(data))
+def get_image(path):
+    img = Image.open(path)
     img.load()
-    img.resize((312, 445), Image.ANTIALIAS)
+    img.resize((312, 445), Image.Resampling.LANCZOS)
 
     return img
 
-def get_back():
-    url = "https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering-card_back.jpg"
-
-    with urllib.request.urlopen(url) as f:
-        data = f.read()
-
-    img = Image.open(BytesIO(data))
-    img.load()
-    img.resize((312, 445), Image.ANTIALIAS)
-
-    return img
 
 def main():
+
     if len(sys.argv) != 2:
-        print("{} decklist".format(sys.argv[0]))
+        print(f"Supply dir with images. The back image must be named 'back.jpg'")
         return
 
-    main, side = load_deck(sys.argv[1])
+    image_dir = sys.argv[1]
+    back_path = os.path.join(image_dir, "back.jpg")
 
-    background = Image.new("RGBA", (3320, 3255), "black")
+    background = Image.new("RGB", (3320, 3255), "black")
+
+    images = [os.path.join(image_dir, f) for f in os.listdir(image_dir)]
+    images = filter(lambda f: os.path.isfile(f), images)
 
     pos = 0
-    for key, value in main.items():
-        print("[+] Loading: {}x {}".format(value, key))
-        img = get_image(key)
-        for i in range(int(value)):
-            background.paste(img, (pos % 10 * 332 + 10, int(pos / 10) * 465 + 10))
-            pos += 1
+    for image in images:
+        if image == back_path or image[-4:] != ".jpg":
+            continue
+        img = get_image(image)
+        background.paste(img, (pos % 10 * 332 + 10, int(pos / 10) * 465 + 10))
+        pos += 1
 
 
-    print("[+] Loading Card Back...".format(value, key))
-    img = get_back()
+    print("[+] Loading Card Back...")
+    img = get_image(back_path)
     background.paste(img, (9 * 332 + 10, 6 * 465 + 10))
 
     print("[+] Saving")
